@@ -31,10 +31,15 @@
     max-width: 800px;
     display: flex;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 4px 10px;
     padding: 6px 10px;
     font-size: 15px;
     letter-spacing: 2px;
     text-transform: uppercase;
+  }
+  @media (max-width: 520px) {
+    #hud { font-size: 11px; letter-spacing: 1px; }
   }
   #gameCanvas {
     background: #0a0d0a;
@@ -122,6 +127,7 @@
 <div id="wrap">
   <div id="hud">
     <span id="scoreLine">SCORE: 0</span>
+    <span id="highScoreLine">HIGH: 0</span>
     <span id="waveLine">WAVE: 1</span>
     <span id="livesLine">LIVES: 3</span>
     <span id="soundToggle" style="cursor:pointer;">SOUND: ON</span>
@@ -132,6 +138,7 @@
     <div id="overlay">
       <h1 id="overlayTitle">MINDBURNER INVADERS</h1>
       <p id="overlaySub">ARROW KEYS / A-D TO MOVE &nbsp;·&nbsp; SPACE TO FIRE &nbsp;·&nbsp; SHOOT THE MIDI PLUG SAUCER FOR BONUS POINTS</p>
+      <p id="overlayHighScore" style="color:#39ff14;font-size:13px;letter-spacing:2px;margin:-8px 0 18px 0;">HIGH SCORE: 0</p>
       <button id="overlayBtn">START</button>
     </div>
   </div>
@@ -150,6 +157,7 @@ const W = canvas.width, H = canvas.height;
 const scoreLine = document.getElementById('scoreLine');
 const waveLine = document.getElementById('waveLine');
 const livesLine = document.getElementById('livesLine');
+const highScoreLine = document.getElementById('highScoreLine');
 const overlay = document.getElementById('overlay');
 const overlayTitle = document.getElementById('overlayTitle');
 const overlaySub = document.getElementById('overlaySub');
@@ -315,6 +323,38 @@ let wave = 1;
 let running = false;
 let gameOver = false;
 
+// ---------- High score (persisted via localStorage where available) ----------
+const HIGH_SCORE_KEY = 'mindburner_invaders_highscore';
+let highScore = 0;
+let justBeatHighScore = false;
+
+function loadHighScore() {
+  try {
+    const v = localStorage.getItem(HIGH_SCORE_KEY);
+    highScore = v ? parseInt(v, 10) || 0 : 0;
+  } catch (e) {
+    highScore = 0; // localStorage unavailable (e.g. sandboxed preview) — falls back to session only
+  }
+}
+
+function saveHighScore() {
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(highScore));
+  } catch (e) {
+    // ignore — score just won't persist across reloads in this environment
+  }
+}
+
+function checkHighScore() {
+  if (score > highScore) {
+    highScore = score;
+    justBeatHighScore = true;
+    saveHighScore();
+  }
+}
+
+loadHighScore();
+
 const player = {
   w: 46, h: 22,
   x: W / 2 - 23,
@@ -443,7 +483,7 @@ let currentTheme = THEMES[0];
 let themeFlashTimer = 0;
 
 function updateTheme(waveNum) {
-  const idx = Math.floor((waveNum - 1) / 5) % THEMES.length;
+  const idx = Math.floor((waveNum - 1) / 4) % THEMES.length;
   const next = THEMES[idx];
   if (next !== currentTheme) {
     currentTheme = next;
@@ -500,13 +540,16 @@ function resetGame() {
   stopSaucerHum();
   currentTheme = THEMES[0];
   themeFlashTimer = 0;
+  justBeatHighScore = false;
   player.x = W / 2 - player.w / 2;
   buildWave(wave);
   updateHUD();
 }
 
 function updateHUD() {
+  checkHighScore();
   scoreLine.textContent = 'SCORE: ' + score;
+  highScoreLine.textContent = 'HIGH: ' + highScore;
   waveLine.textContent = 'WAVE: ' + wave;
   livesLine.textContent = 'LIVES: ' + lives;
 }
@@ -909,8 +952,9 @@ function endGame(won) {
   gameOver = true;
   stopSaucerHum();
   saucer.active = false;
-  overlayTitle.textContent = won ? 'WAVE CLEARED' : 'SIGNAL LOST';
-  overlaySub.textContent = 'FINAL SCORE: ' + score + '   ·   REACHED WAVE ' + wave;
+  document.getElementById('overlayHighScore').style.display = 'none';
+  overlayTitle.textContent = justBeatHighScore ? 'NEW HIGH SCORE!' : (won ? 'WAVE CLEARED' : 'SIGNAL LOST');
+  overlaySub.textContent = 'FINAL SCORE: ' + score + '   ·   HIGH: ' + highScore + '   ·   REACHED WAVE ' + wave;
   overlayBtn.textContent = 'RETRY';
   overlay.style.display = 'flex';
 }
@@ -959,6 +1003,7 @@ bindHold(btnFire, ' ');
 
 // initial state
 resetGame();
+document.getElementById('overlayHighScore').textContent = 'HIGH SCORE: ' + highScore;
 draw();
 overlay.style.display = 'flex';
 loop();
